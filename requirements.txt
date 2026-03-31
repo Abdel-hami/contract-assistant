@@ -1,0 +1,17 @@
+langchain
+langchain-community
+langchain_experimental
+langchain-core
+pymupdf
+langchain_openai
+sentence-transformers
+qdrant_client
+langchain_groq
+fastembed
+cohere
+langchain-huggingface
+fastapi
+ragas
+pdfplumber
+lark
+uvicorn
