@@ -12,3 +12,4 @@ data/*
 !data/.gitkeep
 .env
 golden_dataset.json
+qdrant_storage/
