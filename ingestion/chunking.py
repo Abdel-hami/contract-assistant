@@ -34,14 +34,18 @@ def split_by_sections(text: str):
     return sections
 
 
-def chunk_contract_documents(documents: List[Document]) -> List[Document]:
+def chunk_contract_documents(documents: List[Document], embedding_model:str = "BAAI/bge-large-en-v1.5") -> List[Document]:
     """
     Chunk contracts using section-aware chunking,
     then semantic chunking for large sections.
     """
-
+    ## add model_kwargs and encode_kwargs to force using GPU
+    model_kwargs = {"device":"cuda"}
+    encode_kwargs = {"normalize_embeddings": True}
     embeddings = HuggingFaceEmbeddings(
-        model_name = "sentence-transformers/all-MiniLM-L6-v2"
+        model_name = embedding_model ,
+        model_kwargs = model_kwargs,
+        encode_kwargs = encode_kwargs
     )
 
     semantic_chunker = SemanticChunker(
@@ -50,10 +54,13 @@ def chunk_contract_documents(documents: List[Document]) -> List[Document]:
         breakpoint_threshold_amount=90,
     )
     
-    logger.info(f"initialise embedding model for Semantic Chunker ")
+    logger.info(f"initialise embedding model for Semantic Chunker.")
     all_chunks = []
     logger.info("start chunking ...")
+    i = 0
     for doc in documents:
+        i+=1
+        logger.info(f"Chunking document {i}/{len(documents)}")
         text = doc.page_content
         # split by contract sections
         sections = split_by_sections(text)
@@ -61,7 +68,7 @@ def chunk_contract_documents(documents: List[Document]) -> List[Document]:
             if len(section) < 2000:
                 # small section → keep as one chunk
                 chunk = Document(
-                    page_content=section,
+                    page_content= section,
                     metadata=doc.metadata.copy()
                 )
                 all_chunks.append(chunk)
@@ -73,6 +80,7 @@ def chunk_contract_documents(documents: List[Document]) -> List[Document]:
                 )
                 all_chunks.extend(semantic_chunks)
 
-    logger.info(f"Created {len(all_chunks)} chunks")
 
+    all_chunks =  [doc for doc in all_chunks if len(doc.page_content) > 25]
+    logger.info(f"Created {len(all_chunks)} chunks")
     return all_chunks

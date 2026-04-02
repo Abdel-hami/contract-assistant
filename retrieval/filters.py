@@ -10,6 +10,8 @@ Contract type comes directly from the PDF's parent folder name:
 No regex guessing needed — the folder IS the label.
 """
 
+from qdrant_client import models
+
 from ingestion.vectorStore import QdrantStore
 from langchain_classic.retrievers.self_query.base import SelfQueryRetriever
 from langchain_classic.chains.query_constructor.schema import AttributeInfo
@@ -107,182 +109,182 @@ def get_filter_from_query(query:str):
 
 
 
-import re
-import logging
-from pathlib import Path
-from dataclasses import dataclass
-from typing import Optional
+# import re
+# import logging
+# from pathlib import Path
+# from dataclasses import dataclass
+# from typing import Optional
 
-from qdrant_client.models import Filter, FieldCondition, MatchValue
+# from qdrant_client.models import Filter, FieldCondition, MatchValue
 
-logger = logging.getLogger(__name__)
-from qdrant_client import models
-
-
-# ── Known contract types from CUAD folder structure ──────────────────────────
-# Key   = exact folder name in your dataset
-# Value = query keywords that map to it
-
-CUAD_CONTRACT_TYPES = {
-    "IP":                      ["ip", "intellectual property", "patent", "trademark", "copyright"],
-    "License_Agreements":      ["license", "licensing", "licence"],
-    "Service":                 ["service", "services", "service agreement"],
-    "NDA":                     ["nda", "non-disclosure", "confidentiality"],
-    "Maintenance":             ["maintenance", "support", "upkeep"],
-    "Development":             ["development", "dev", "software development"],
-    "Distributor":             ["distributor", "distribution"],
-    "Endorsement":             ["endorsement", "endorse"],
-    "Franchise":               ["franchise", "franchising"],
-    "Hosting":                 ["hosting", "host", "cloud hosting"],
-    "Joint_Venture":           ["joint venture", "jv", "partnership"],
-    "Manufacturing":           ["manufacturing", "manufacture"],
-    "Marketing":               ["marketing", "advertisement", "advertising"],
-    "Non_Compete_Non_Solicit": ["non-compete", "non compete", "non-solicit", "noncompete"],
-    "Outsourcing":             ["outsourcing", "outsource", "bpo"],
-    "Promotion":               ["promotion", "promotional"],
-    "Reseller":                ["reseller", "resell", "resale"],
-    "Sponsorship":             ["sponsorship", "sponsor"],
-    "Strategic_Alliance":      ["strategic alliance", "alliance"],
-    "Supply":                  ["supply", "supplier", "procurement"],
-    "Transportation":          ["transportation", "transport", "logistics", "shipping"],
-}
+# logger = logging.getLogger(__name__)
+# from qdrant_client import models
 
 
-# ── 1. Used during INGESTION ──────────────────────────────────────────────────
+# # ── Known contract types from CUAD folder structure ──────────────────────────
+# # Key   = exact folder name in your dataset
+# # Value = query keywords that map to it
 
-def get_contract_type_from_path(file_path: str) -> str:
-    """
-    Extract contract type from the PDF's parent folder name.
-   """
-    contract_type = Path(file_path).parent.name
-    logger.info(f"Contract type from path: '{contract_type}'")
-    return contract_type
-
-
-# ── 2. Used during RETRIEVAL ──────────────────────────────────────────────────
-
-def detect_contract_type_from_query(query: str) -> Optional[str]:
-    """
-    Detect contract type from user query keywords.
-    Maps to exact CUAD folder names.
-
-    Args:
-        query : raw or rewritten user query
-
-    Returns:
-        exact folder name or None if not detected
-
-    Examples:
-        "when does the IP agreement expire?"     → "IP"
-        "what are the license terms?"            → "License_Agreements"
-        "what is the liability cap?"             → None
-    """
-    query_lower = query.lower()
-    for contract_type, keywords in CUAD_CONTRACT_TYPES.items():
-        for keyword in keywords:
-            if keyword in query_lower:
-                logger.info(f"  Detected contract type: '{contract_type}'")
-                return contract_type
-    logger.info("  No contract type detected — searching all types")
-    return None
+# CUAD_CONTRACT_TYPES = {
+#     "IP":                      ["ip", "intellectual property", "patent", "trademark", "copyright"],
+#     "License_Agreements":      ["license", "licensing", "licence"],
+#     "Service":                 ["service", "services", "service agreement"],
+#     "NDA":                     ["nda", "non-disclosure", "confidentiality"],
+#     "Maintenance":             ["maintenance", "support", "upkeep"],
+#     "Development":             ["development", "dev", "software development"],
+#     "Distributor":             ["distributor", "distribution"],
+#     "Endorsement":             ["endorsement", "endorse"],
+#     "Franchise":               ["franchise", "franchising"],
+#     "Hosting":                 ["hosting", "host", "cloud hosting"],
+#     "Joint_Venture":           ["joint venture", "jv", "partnership"],
+#     "Manufacturing":           ["manufacturing", "manufacture"],
+#     "Marketing":               ["marketing", "advertisement", "advertising"],
+#     "Non_Compete_Non_Solicit": ["non-compete", "non compete", "non-solicit", "noncompete"],
+#     "Outsourcing":             ["outsourcing", "outsource", "bpo"],
+#     "Promotion":               ["promotion", "promotional"],
+#     "Reseller":                ["reseller", "resell", "resale"],
+#     "Sponsorship":             ["sponsorship", "sponsor"],
+#     "Strategic_Alliance":      ["strategic alliance", "alliance"],
+#     "Supply":                  ["supply", "supplier", "procurement"],
+#     "Transportation":          ["transportation", "transport", "logistics", "shipping"],
+# }
 
 
-def detect_party_from_query(query: str) -> Optional[str]:
-    """
-    Detect a company name from the query.
+# # ── 1. Used during INGESTION ──────────────────────────────────────────────────
 
-    Examples:
-        "when does Armstrong's contract expire?" → "armstrong"
-        "what is the liability cap?"             → None
-    """
-    stopwords = {
-        "what", "when", "where", "which", "who", "how", "does", "do",
-        "the", "this", "that", "is", "are", "was", "will", "can",
-        "contract", "agreement", "clause", "section", "term", "terms",
-        "expire", "expires", "expiry", "terminate", "termination",
-    }
-    capitalized = re.findall(r'\b[A-Z][a-zA-Z]{2,}\b', query)
-    for word in capitalized:
-        if word.lower() not in stopwords:
-            logger.info(f"Detected party: '{word}'")
-            return word.lower()
-    return None
+# def get_contract_type_from_path(file_path: str) -> str:
+#     """
+#     Extract contract type from the PDF's parent folder name.
+#    """
+#     contract_type = Path(file_path).parent.name
+#     logger.info(f"Contract type from path: '{contract_type}'")
+#     return contract_type
 
 
-# ── Filter schema ─────────────────────────────────────────────────────────────
+# # ── 2. Used during RETRIEVAL ──────────────────────────────────────────────────
 
-@dataclass
-class ContractFilter:
-    contract_type: Optional[str] = None   
-    party_1:    Optional[str] = None   
-    party_2:    Optional[str] = None   
-    file_name:     Optional[str] = None   
+# def detect_contract_type_from_query(query: str) -> Optional[str]:
+#     """
+#     Detect contract type from user query keywords.
+#     Maps to exact CUAD folder names.
 
-    def is_empty(self) -> bool:
-        return all(v is None for v in [self.contract_type, self.party_1, self.party_2, self.file_name])
+#     Args:
+#         query : raw or rewritten user query
 
-# ── Extract + Build ───────────────────────────────────────────────────────────
+#     Returns:
+#         exact folder name or None if not detected
 
-def extract_filters(query: str) -> ContractFilter:
-    """
-    Extract all filters from a user query.
-
-    Examples:
-        "when does the Armstrong IP agreement expire?"
-        → ContractFilter(contract_type="IP", party_name="armstrong")
-
-        "what are the license renewal terms?"
-        → ContractFilter(contract_type="License_Agreements")
-
-        "what is the liability cap?"
-        → ContractFilter()  ← empty, search everything
-    """
-    logger.info(f"Extracting filters from: '{query}'")
-    filters = ContractFilter(
-        contract_type=detect_contract_type_from_query(query),
-        party_1=detect_party_from_query(query),
-    )
-    return filters
+#     Examples:
+#         "when does the IP agreement expire?"     → "IP"
+#         "what are the license terms?"            → "License_Agreements"
+#         "what is the liability cap?"             → None
+#     """
+#     query_lower = query.lower()
+#     for contract_type, keywords in CUAD_CONTRACT_TYPES.items():
+#         for keyword in keywords:
+#             if keyword in query_lower:
+#                 logger.info(f"  Detected contract type: '{contract_type}'")
+#                 return contract_type
+#     logger.info("  No contract type detected — searching all types")
+#     return None
 
 
-def build_qdrant_filter(filters: ContractFilter) -> Optional[Filter]:
-    """ContractFilter → Qdrant Filter object (or None if empty)."""
-    if filters.is_empty():
-        return None
+# def detect_party_from_query(query: str) -> Optional[str]:
+#     """
+#     Detect a company name from the query.
 
-    conditions = []
-
-    if filters.contract_type:
-        conditions.append(FieldCondition(
-            key="contract_type",
-            match=MatchValue(value=filters.contract_type),
-        ))
-    if filters.party_1:
-        conditions.append(FieldCondition(
-            key="party_1",
-            match=MatchValue(value=filters.party_1),
-        ))
-    if filters.party_2:
-        conditions.append(FieldCondition(
-            key="party_2",
-            match=MatchValue(value=filters.party_2),
-        ))
-    if filters.file_name:
-        conditions.append(FieldCondition(
-            key="file_name",
-            match=MatchValue(value=filters.file_name),
-        ))
-
-    return Filter(must=conditions)
+#     Examples:
+#         "when does Armstrong's contract expire?" → "armstrong"
+#         "what is the liability cap?"             → None
+#     """
+#     stopwords = {
+#         "what", "when", "where", "which", "who", "how", "does", "do",
+#         "the", "this", "that", "is", "are", "was", "will", "can",
+#         "contract", "agreement", "clause", "section", "term", "terms",
+#         "expire", "expires", "expiry", "terminate", "termination",
+#     }
+#     capitalized = re.findall(r'\b[A-Z][a-zA-Z]{2,}\b', query)
+#     for word in capitalized:
+#         if word.lower() not in stopwords:
+#             logger.info(f"Detected party: '{word}'")
+#             return word.lower()
+#     return None
 
 
-def get_filter_from_query(query: str) -> Optional[Filter]:
-    """
-    One-shot: query string → Qdrant Filter.
+# # ── Filter schema ─────────────────────────────────────────────────────────────
 
-    Usage:
-        qdrant_filter = get_filter_from_query("Armstrong IP agreement expiry")
-        results = search.search(query, filters=qdrant_filter)
-    """
-    return build_qdrant_filter(extract_filters(query))
+# @dataclass
+# class ContractFilter:
+#     contract_type: Optional[str] = None   
+#     party_1:    Optional[str] = None   
+#     party_2:    Optional[str] = None   
+#     file_name:     Optional[str] = None   
+
+#     def is_empty(self) -> bool:
+#         return all(v is None for v in [self.contract_type, self.party_1, self.party_2, self.file_name])
+
+# # ── Extract + Build ───────────────────────────────────────────────────────────
+
+# def extract_filters(query: str) -> ContractFilter:
+#     """
+#     Extract all filters from a user query.
+
+#     Examples:
+#         "when does the Armstrong IP agreement expire?"
+#         → ContractFilter(contract_type="IP", party_name="armstrong")
+
+#         "what are the license renewal terms?"
+#         → ContractFilter(contract_type="License_Agreements")
+
+#         "what is the liability cap?"
+#         → ContractFilter()  ← empty, search everything
+#     """
+#     logger.info(f"Extracting filters from: '{query}'")
+#     filters = ContractFilter(
+#         contract_type=detect_contract_type_from_query(query),
+#         party_1=detect_party_from_query(query),
+#     )
+#     return filters
+
+
+# def build_qdrant_filter(filters: ContractFilter) -> Optional[Filter]:
+#     """ContractFilter → Qdrant Filter object (or None if empty)."""
+#     if filters.is_empty():
+#         return None
+
+#     conditions = []
+
+#     if filters.contract_type:
+#         conditions.append(FieldCondition(
+#             key="contract_type",
+#             match=MatchValue(value=filters.contract_type),
+#         ))
+#     if filters.party_1:
+#         conditions.append(FieldCondition(
+#             key="party_1",
+#             match=MatchValue(value=filters.party_1),
+#         ))
+#     if filters.party_2:
+#         conditions.append(FieldCondition(
+#             key="party_2",
+#             match=MatchValue(value=filters.party_2),
+#         ))
+#     if filters.file_name:
+#         conditions.append(FieldCondition(
+#             key="file_name",
+#             match=MatchValue(value=filters.file_name),
+#         ))
+
+#     return Filter(must=conditions)
+
+
+# def get_filter_from_query(query: str) -> Optional[Filter]:
+#     """
+#     One-shot: query string → Qdrant Filter.
+
+#     Usage:
+#         qdrant_filter = get_filter_from_query("Armstrong IP agreement expiry")
+#         results = search.search(query, filters=qdrant_filter)
+#     """
+#     return build_qdrant_filter(extract_filters(query))
 

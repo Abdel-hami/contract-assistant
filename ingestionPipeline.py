@@ -10,8 +10,7 @@ class IngestionPipeline:
 
     def run(self, data_dir):
         documents = load_all_document(data_dir)
-        documents = enrich_metadata(documents)
-        chunks = chunk_contract_documents(documents)
-
+        documents = enrich_metadata(documents=documents, data_csv_path="data/full_contract_pdf")
+        chunks = chunk_contract_documents(documents=documents)
         self.qdrantStore.embedde_chunks_and_store(chunks)
 

@@ -15,3 +15,5 @@ ragas
 pdfplumber
 lark
 uvicorn
+docling
+langchain-qdrant
