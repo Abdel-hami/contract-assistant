@@ -15,12 +15,13 @@ def run_ragas():
         golden = json.load(f)
 
     dataset = Dataset.from_list(golden)
-
+    model_kwargs = {'device': 'cuda'}  # or 'cuda:0'
+    encode_kwargs = {'normalize_embeddings': True}
     results = evaluate(
         dataset=dataset,
         metrics=[faithfulness, answer_relevancy, context_recall],
-        llm=ChatGroq(model_name="openai/gpt-oss-120b", groq_api_key = groq_api_key, temperature=0),
-        embeddings=HuggingFaceEmbeddings(model_name="all-minilm-l6-v2")
+        llm=ChatGroq(model_name="llama-3.3-70b-versatile", groq_api_key = groq_api_key, temperature=0),
+        embeddings=HuggingFaceEmbeddings(model_name="BAAI/bge-large-en-v1.5", model_kwargs=model_kwargs, encode_kwargs =encode_kwargs)
     )
 
     print(results)

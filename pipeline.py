@@ -20,7 +20,7 @@ class RAGPipeline:
         self.reranker = Reranker() 
         self.llm      = LLMClient()
 
-    def run(self, query: str, top_k: int = 5) -> dict:
+    def run(self, query: str, top_k: int = 8) -> dict:
         """
         Full RAG pipeline — no FastAPI dependency.
         Can be called from API, CLI, tests, anywhere.
@@ -32,8 +32,13 @@ class RAGPipeline:
         # 2 — filters from original query
         qdrant_filters = get_filter_from_query(query)
 
+        # if manual_filter:
+        #     results = self.search.hybrid_search_with_rrf(rewritten,manual_filter)
+        # else:
+        #     results = self.search.hybrid_search_with_rrf(rewritten,qdrant_filters)
+
+        results = self.search.hybrid_search_with_rrf(rewritten,qdrant_filters)
         # 3 — hybrid search
-        results = self.search.hybrid_search_with_rrf(rewritten,qdrant_filters) #, top_n=top_k * 4
         if not results:
             raise HTTPException(
                 status_code=404,

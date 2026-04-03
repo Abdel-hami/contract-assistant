@@ -19,35 +19,24 @@
 #     But vector similarity ≠ actual relevance to the query.
 #     A reranker reads query + chunk TOGETHER and scores true relevance.
 #     This is the single biggest quality improvement in a RAG pipeline.
-
 import logging
 from dataclasses import dataclass
 import os 
 from dotenv import load_dotenv
 import cohere
+from typing import Optional
 
 load_dotenv()
 logger = logging.getLogger(__name__)
 
 @dataclass
 class RerankedResult:
-    """
-    A chunk after reranking — carries the rerank score alongside
-    all original SearchResult fields.
-
-    Attributes:
-        chunk_id       : unique chunk identifier
-        text           : contract chunk text
-        rerank_score   : relevance score from reranker (higher = more relevant)
-        section_title  : section in the contract this chunk came from
-        metadata       : full payload (contract_type, expiry_date, file_name..)
-        original_rank  : position before reranking (from hybrid search)
-    """
     chunk_id: str
+    # text: str
     rerank_score: float
     metadata: dict
     original_rank: int
-
+ 
 
 class Reranker:
     # rerank-v3.5 / rerank-v4.0
@@ -60,13 +49,12 @@ class Reranker:
         self.client = cohere.Client(cohere_api_key)
         logger.info(f"Reranker initialized - model: {model_name}")
 
-    def rerank(self, query: str, results: list, top_n:int=10)->list:
+    def rerank(self, query: str, results: list, top_n:int=8)->list:
         """
         Rerank hybrid search results using Cohere API. 
         Returns:
             list of RerankedResult sorted by rerank_score descending
         """
-        logger.info(f"Start Reranking ...")
         if not results:
             return []
         documents = [r.metadata.get("text","") for r in results] # r.page_content for r in results
@@ -91,5 +79,3 @@ class Reranker:
         logger.info(f"Cohere reranked {len(results)} → top {len(reranked)} results")
 
         return reranked
-
-

@@ -16,8 +16,9 @@ def clean_date_human_display(raw_data:str)->str:
     date_obj = pd.to_datetime(raw_date, format='mixed', errors='coerce')
     # 3. Format it back to your desired string style (MM/DD/YY)
     if pd.notnull(date_obj):
-    # %m/%d/%y gives you 07/19/12. 
-    # If you want 7/19/12 (no leading zero), use .strftime('%#m/%#d/%y') on Windows
+        if date_obj.year < 1900:
+            return f"{date_obj.month}/{date_obj.day}/{date_obj.year}"
+        # %m/%d/%y gives you 07/19/12. 
         clean_date_str = date_obj.strftime('%m/%d/%y')
     else:
         clean_date_str = "Unknown" # Or keep it as None/nan
@@ -31,6 +32,8 @@ def clean_date_iso(raw_data:str):
     date_obj = pd.to_datetime(raw_date, format='mixed', errors='coerce')
     # 3. Format it back to ISO format (YYYY-MM-DD)
     if pd.notnull(date_obj):
+        if date_obj.year < 1900:
+            return f"{date_obj.month}/{date_obj.day}/{date_obj.year}"
         clean_date_str = date_obj.strftime('%Y-%m-%dT%H:%M:%SZ')
     else:
         clean_date_str = "Unknown" 
@@ -53,7 +56,7 @@ def clear_brackets_and_nan(raw_value):
 
 
 
-def enrich_metadata(documents:List[Document], data_csv_path:str):
+def enrich_metadata(documents, data_csv_path:str):
 
     logger.info(f"strat enriching metadata for {len(documents)} documents")
     data = pd.read_csv(data_csv_path)
@@ -62,8 +65,12 @@ def enrich_metadata(documents:List[Document], data_csv_path:str):
         for _, row in data.iterrows():
             if doc.metadata.get("source_file") == row["Filename"]:
                 #parties:
+                if pd.isna(row["Parties-Answer"]):
+                    row["Parties-Answer"] = "Unknown Party; Unknown Party"
                 parties = re.findall(r'([^;()]+)(?:\s*\(|$)', row["Parties-Answer"])
                 parties = [party.strip() for party in parties if party.strip()] 
+                while len(parties) < 2:
+                    parties.append("N/A")
                 party_1 = parties[0] if len(parties) > 0 else "Unknown"
                 party_2 = parties[1] if len(parties) > 1 else "Unknown"
                 doc.metadata.update({

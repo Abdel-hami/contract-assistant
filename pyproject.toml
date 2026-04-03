@@ -28,6 +28,7 @@ dependencies = [
     "uvicorn>=0.42.0",
     "docling>=2.83.0",
     "langchain-qdrant>=1.1.0",
+    "gradio>=6.11.0",
 ]
 
 [[tool.uv.index]]

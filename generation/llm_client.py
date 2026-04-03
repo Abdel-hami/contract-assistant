@@ -1,17 +1,15 @@
 from langchain_groq import ChatGroq
 from langchain_core.messages import HumanMessage, SystemMessage
-from generation.question_answering import (SYSTEM_PROMPT, build_user_prompt)
-import os 
+import os
 from dotenv import load_dotenv
-import logging
-
-logger = logging.getLogger(__name__)
+from torch import chunk
+from generation.question_answering import SYSTEM_PROMPT, build_user_prompt
 
 
 load_dotenv()
 
 class LLMClient:
-
+# llama-3.3-70b-versatile
     def __init__(self, model_name: str = "openai/gpt-oss-120b"):
         """Groq LLM client for contract question answering."""
         self.model_name = model_name
@@ -22,12 +20,9 @@ class LLMClient:
             model=self.model_name, groq_api_key=groq_api_key, temperature=0
         )
 
-        logger.info(f"LLMClient initialized - model {self.model_name}")
+        print(f"[INFO] LlmClient initialized - model {self.model_name}")
 
     def generate_response(self, query: str, chunks):
-
-        logger.info(f"start generating response for query : {query}")
-
         USER_PROMPT = build_user_prompt(query, chunks)
 
         messages = [
@@ -39,68 +34,85 @@ class LLMClient:
         except Exception as e:
             raise RuntimeError(f"Groq API call failed: {e}") from e
 
-        sources = [{
-            "filename": chunk.get("source", ""),
-            "file_type": chunk.get("file_type", ""),
-            "page": chunk.get("page", ""),
-            "contract_type": chunk.get("contract_type", ""),
-            "agreement_date": chunk.get("agreement_date", ""),
-            "effective_date": chunk.get("effective_date", ""),
-            "expiration_date": chunk.get("expiration_date", ""),
-            "party_1": chunk.get("party_1","uknown"),
-            "party_2": chunk.get("party_2","uknown"),
-            "notice_period_to_terminate": chunk.get("notice_period_to_terminate","uknown"),
-            "renewl_term": chunk.get("renewl_term","uknown"),
-            "governing_law": chunk.get("governing_law","uknown"),
-            "preview": chunk["text"][0:200]+ "..."
-            # "clause_type": chunk.get("Clause_type", ""),
-        } for chunk in chunks]
+        sources = [
+            {
+                "file_name": chunk.get("source_file", ""),
+                "file_type": chunk.get("file_type", ""),
+                "page": chunk.get("page", ""),
+                "contract_type": chunk.get("contract_type", ""),
+                "agreement_date": chunk.get("agreement_date", ""),
+                "effective_date": chunk.get("effective_date", ""),
+                "expiration_date": chunk.get("expiration_date", ""),
+                "agreement_date_human_display": chunk.get(
+                    "agreement_date_human_display", ""
+                ),
+                "effective_date_human_display": chunk.get(
+                    "effective_date_human_display", ""
+                ),
+                "expiration_date_human_display": chunk.get(
+                    "expiration_date_human_display", ""
+                ),
+                "party_1": chunk.get("party_1", ""),
+                "party_2": chunk.get("party_2", ""),
+                "notice_period_to_terminate": chunk.get(
+                    "notice_period_to_terminate", ""
+                ),
+                "renewl_term": chunk.get("renewl_term", ""),
+                "governing_law": chunk.get("governing_law", ""),
+                "preview": chunk["text"][0:200] + "...",
+            }
+            for chunk in chunks
+        ]
 
         results = {
             "answer": answer.content,
             "sources": sources,
-            # "confidence":chunks[0].get("rerank_score",0) if chunks else None
         }
-        logger.info("Response generated successfully.")
         return self.format_result(results)
-    
+        # return results
+
     @staticmethod
     def format_result(results):
-            sources_map = {}
+    # results is likely a dict containing a list under "sources"
+    # or just a list itself. Adjust accordingly:
+        sources_input = results.get("sources", [])
+        
+        sources_map = {}
 
-            for source in results.get("sources",[]):
-                filename = source.get("filename", "unknown")
+        for source in sources_input:
+            filename = source.get("file_name", "unknown")
+            
+            if filename not in sources_map:
+                # First time seeing this file → create the entry
+                sources_map[filename] = {
+                    "filename": filename,
+                    "file_type": source.get("file_type", ""),
+                    "page": source.get("page", ""),
+                    "contract_type": source.get("contract_type", ""),
+                    "agreement_date": source.get("agreement_date", ""),
+                    "effective_date": source.get("effective_date", ""),
+                    "expiration_date": source.get("expiration_date", ""),
+                    "agreement_date_human_display": source.get("agreement_date_human_display", ""),
+                    "effective_date_human_display": source.get("effective_date_human_display", ""),
+                    "expiration_date_human_display": source.get("expiration_date_human_display", ""),
+                    "party_1": source.get("party_1", ""),
+                    "party_2": source.get("party_2", ""),
+                    "pages": [source["page"]] if source.get("page") else [],
+                    "notice_period_to_terminate": source.get("notice_period_to_terminate", ""),
+                    "renewl_term": source.get("renewl_term", ""),
+                    "governing_law": source.get("governing_law", ""),
+                    "preview": source.get("preview", ""),
+                }
+            else:
+                # Already seen this file → update the pages list
+                existing = sources_map[filename]
+                page = source.get("page")
+                if page and page not in existing["pages"]:
+                    existing["pages"].append(page)
 
-                if filename not in sources_map:
-                    # First time seeing this file → add it
-                    sources_map[filename] = {
-                        "filename": filename,
-                        "contract_type": source.get("contract_type", ""),
-                        "agreement_date": source.get("agreement_date", ""),
-                        "effective_date": source.get("effective_date", ""),
-                        "expiration_date": source.get("expiration_date", ""),
-                        "party_1": source.get("party_1",""),
-                        "party_2": source.get("party_2",""),
-                        "notice_period_to_terminate": source.get("notice_period_to_terminate",""),
-                        "renewl_term": source.get("renewl_term",""),
-                        "pages": [source["page"]] if source.get("page") else [],
-                        "preview": source.get("preview", ""),
-                        # "clause_types":  [source.get("clause_type")] if source.get("clause_type") else [],
-                    }
-                else:
-                    # Already seen this file → just add new page and clause_type
-                    existing = sources_map[filename]
-
-                    if source.get("page") and source["page"] not in existing["pages"]:
-                        existing["pages"].append(source["page"])
-
-                    # if source.get("clause_type") and source["clause_type"] not in existing["clause_types"]:
-                    #     existing["clause_types"].append(source["clause_type"])
-
-            return {
-                "answer":     results["answer"],
-                "sources":    list(sources_map.values()),
-                # "confidence": results["confidence"],
+        return {
+            "answer": results["answer"],
+            "sources": list(sources_map.values()),
             }
 
     # ── Chunk formatter ───────────────────────────────────────────────────────
@@ -123,27 +135,6 @@ class LLMClient:
                 "text": r.metadata.get("text", ""),
                 "file_name": r.metadata.get("source", "unknown"),
                 "original_score": r.original_rank,
-                "rerank_score": r.rerank_score
             }
             for r in reranked_results
         ]
-
-
-
-# if __name__ == "__main__":
-    
-#     llm_client = LLMClient()
-#     reranker = Reranker()
-#     query_rewriter = QueryRewriting()
-#     hybrid_search = HybridSearch()
-#     original_query = "what is bla bla bla ?"
-
-#     qdrant_filters = get_filter_from_query(original_query)
-#     rewrited_query = query_rewriter.rewrite_query(original_query)
-#     results = hybrid_search.hybrid_search_with_rrf(rewrited_query,fliters=qdrant_filters)
-#     reranked_results = reranker.rerank(rewrited_query, results)
-#     chunks = llm_client.reranked_to_chunks(reranked_results)
-
-#     answer = llm_client.generate_response(rewrited_query,chunks)
-
-#     print(answer)
