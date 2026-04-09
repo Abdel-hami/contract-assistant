@@ -117,7 +117,7 @@ def get_filter_from_query(query: str):
     
     # Enable JSON mode for reliable structured output
     llm = ChatGroq(
-        model_name="llama-3.3-70b-versatile", #llama-3.3-70b-versatile
+        model_name="openai/gpt-oss-120b", #llama-3.3-70b-versatile
         groq_api_key=groq_api_key,
         temperature=0
 
