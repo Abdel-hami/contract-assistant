@@ -65,7 +65,7 @@ def build_golden_dataset():
             answer = pipeline.llm.generate_response(
                 result["rewritten_query"], result["chunks"]
             )
-            time.sleep(3)
+            time.sleep(5)
             golden.append(
                 {
                     "question": row["question"],

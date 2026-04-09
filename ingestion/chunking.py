@@ -2,8 +2,6 @@ import logging
 import re
 from typing import List
 from langchain_core.documents import Document
-from langchain_experimental.text_splitter import SemanticChunker
-from langchain_community.embeddings import HuggingFaceEmbeddings
 
 logger = logging.getLogger(__name__)
 
@@ -22,7 +20,7 @@ def split_by_sections(text: str):
         return [text]
     sections = []
     for i, match in enumerate(matches):
-        header_info = f"Section {match.group(0)}:\n"
+        header_info = f"Section {match.group(0).strip()}:\n"
 
         start = match.start()
         if i + 1 < len(matches):
@@ -39,20 +37,6 @@ def chunk_contract_documents(documents: List[Document], embedding_model:str = "B
     Chunk contracts using section-aware chunking,
     then semantic chunking for large sections.
     """
-    ## add model_kwargs and encode_kwargs to force using GPU
-    model_kwargs = {"device":"cuda"}
-    encode_kwargs = {"normalize_embeddings": True}
-    embeddings = HuggingFaceEmbeddings(
-        model_name = embedding_model ,
-        model_kwargs = model_kwargs,
-        encode_kwargs = encode_kwargs
-    )
-
-    semantic_chunker = SemanticChunker(
-        embeddings,
-        breakpoint_threshold_type="percentile",
-        breakpoint_threshold_amount=90,
-    )
     
     logger.info(f"initialise embedding model for Semantic Chunker.")
     all_chunks = []
@@ -73,14 +57,19 @@ def chunk_contract_documents(documents: List[Document], embedding_model:str = "B
                 )
                 all_chunks.append(chunk)
             else:
-                # large section → semantic chunking
-                semantic_chunks = semantic_chunker.create_documents(
-                    [section],
-                    [doc.metadata]
+                # For massive sections, split with OVERLAP so context isn't lost at the cut
+                from langchain_text_splitters import RecursiveCharacterTextSplitter
+                text_splitter = RecursiveCharacterTextSplitter(
+                    chunk_size=1000,
+                    chunk_overlap=200, 
+                    add_start_index=True
                 )
-                all_chunks.extend(semantic_chunks)
+                splits = text_splitter.split_text(section)
+                for split in splits:
+                    all_chunks.append(Document(page_content=split, metadata=doc.metadata.copy()))
 
 
-    all_chunks =  [doc for doc in all_chunks if len(doc.page_content) > 25]
+
+    all_chunks =  [doc for doc in all_chunks if len(doc.page_content) > 30]
     logger.info(f"Created {len(all_chunks)} chunks")
     return all_chunks

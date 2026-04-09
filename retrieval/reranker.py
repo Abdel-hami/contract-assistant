@@ -49,7 +49,7 @@ class Reranker:
         self.client = cohere.Client(cohere_api_key)
         logger.info(f"Reranker initialized - model: {model_name}")
 
-    def rerank(self, query: str, results: list, top_n:int=8)->list:
+    def rerank(self, query: str, results: list, top_n:int=10)->list:
         """
         Rerank hybrid search results using Cohere API. 
         Returns:
@@ -57,7 +57,7 @@ class Reranker:
         """
         if not results:
             return []
-        documents = [r.metadata.get("text","") for r in results] # r.page_content for r in results
+        documents = [r.metadata.get("text","") for r in results] 
 
         response = self.client.rerank(
             model = self.model_name,

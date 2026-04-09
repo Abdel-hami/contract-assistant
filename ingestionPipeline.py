@@ -4,7 +4,7 @@ from ingestion.chunking import chunk_contract_documents
 from ingestion.vectorStore import QdrantStore
 
 
-class IngestionPipeline:
+class IngestionPipeline: 
     def __init__(self, dense_model_name: str = "BAAI/bge-large-en-v1.5", sparse_model_name: str = "Qdrant/bm25"):
         self.qdrantStore = QdrantStore(dense_model_name=dense_model_name, sparse_model_name=sparse_model_name)
 

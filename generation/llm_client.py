@@ -2,7 +2,6 @@ from langchain_groq import ChatGroq
 from langchain_core.messages import HumanMessage, SystemMessage
 import os
 from dotenv import load_dotenv
-from torch import chunk
 from generation.question_answering import SYSTEM_PROMPT, build_user_prompt
 
 
@@ -19,6 +18,7 @@ class LLMClient:
         self.llm = ChatGroq(
             model=self.model_name, groq_api_key=groq_api_key, temperature=0
         )
+   
 
         print(f"[INFO] LlmClient initialized - model {self.model_name}")
 

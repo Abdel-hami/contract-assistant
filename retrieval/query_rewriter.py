@@ -1,9 +1,3 @@
-# A PromptTemplate is a predefined, reusable structure for generating prompts for 
-# Large Language Models (LLMs). Instead of manually writing a full prompt every time, 
-# a template uses placeholders (variables) that are dynamically filled with specific data at runtime, 
-# ensuring consistency, efficiency, and better control over AI outputs.
-
-
 from dotenv import load_dotenv
 from langchain_groq import ChatGroq
 from langchain_core.prompts import PromptTemplate
@@ -22,16 +16,21 @@ class QueryRewriting:
 
         self.prompt = PromptTemplate(
             input_variables=["original_query"],
-            template="""You are an expert legal assistant helping retrieve information \
-                    from enterprise contracts.
+            template="""You are an expert legal query rewriting and expansion assistant.
 
-                    Reformulate the user query below to be more precise and retrieval-friendly.
-                    Return ONLY the rewritten query, nothing else.
+            Your task is to rewrite the user's query into a retrieval-optimized search query for legal contracts.
 
-                    Original query: {original_query}
-                    Rewritten query:"""
+            Rules:
+            - Preserve the original legal intent exactly (DO NOT add new concepts)
+            - Expand the query by at most five words without changing the legal meaning or terminology.            
+            - Avoid document-specific names, metadata, or filters
+            - Output a single query
+
+            Original query: {original_query}
+
+            Rewritten query:"""
         )
-
+    
         self.chain = self.prompt | self.llm
         print(f"[INFO] Groq LLM initialized {self.model_name}")
 

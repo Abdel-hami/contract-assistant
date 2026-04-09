@@ -31,38 +31,41 @@ def remove_content_prefix(node):
         for arg in node.arguments:
             remove_content_prefix(arg)
     return node
-
 def clean_qdrant_filters(filter_obj):
-    """
-    Recursively removes 'content.' and any leading dots from 
-    FieldCondition keys to match a flat Qdrant payload.
-    """
     if filter_obj is None:
         return None
 
-    # Helper to clean a list of conditions (must, should, must_not)
-    def clean_list(conditions):
-        if not conditions:
-            return
-        for condition in conditions:
-            # 1. If it's a direct FieldCondition, fix the key
-            if isinstance(condition, models.FieldCondition):
-                # Remove 'content.' if present
-                new_key = condition.key.replace("content.", "")
-                # Remove a leading dot if it exists (e.g., '.party_1' -> 'party_1')
-                if new_key.startswith("."):
-                    new_key = new_key[1:]
-                condition.key = new_key
-                
-            # 2. If it's a nested Filter (Filter inside a Filter), recurse
-            elif hasattr(condition, 'must') or hasattr(condition, 'should'):
-                clean_qdrant_filters(condition)
+    # Helper to clean a single condition (the core logic)
+    def clean_single_condition(condition):
+        if isinstance(condition, models.FieldCondition):
+            new_key = condition.key.replace("content.", "")
+            if new_key.startswith("."):
+                new_key = new_key[1:]
+            condition.key = new_key
+        return condition
 
-    # Apply to all possible Qdrant filter branches
-    clean_list(filter_obj.must)
-    clean_list(filter_obj.should)
-    clean_list(filter_obj.must_not)
-                
+    # 1. If it's a direct FieldCondition (single filter)
+    if isinstance(filter_obj, models.FieldCondition):
+        return clean_single_condition(filter_obj)
+
+    # 2. If it's a Filter object (nested/multiple filters)
+    if isinstance(filter_obj, models.Filter):
+        if filter_obj.must:
+            for c in filter_obj.must: clean_single_condition(c)
+        if filter_obj.should:
+            for c in filter_obj.should: clean_single_condition(c)
+        if filter_obj.must_not:
+            for c in filter_obj.must_not: clean_single_condition(c)
+        
+        # Check for nested filters inside this filter
+        # (Recursive calls if you have nested AND/OR)
+        for attr in ['must', 'should', 'must_not']:
+            cond_list = getattr(filter_obj, attr)
+            if cond_list:
+                for c in cond_list:
+                    if isinstance(c, models.Filter):
+                        clean_qdrant_filters(c)
+                        
     return filter_obj
 def get_filter_from_query(query: str): 
     metadata_info = [
@@ -114,12 +117,10 @@ def get_filter_from_query(query: str):
     
     # Enable JSON mode for reliable structured output
     llm = ChatGroq(
-        model_name="openai/gpt-oss-120b",
+        model_name="llama-3.3-70b-versatile", #llama-3.3-70b-versatile
         groq_api_key=groq_api_key,
-        temperature=0,
-        # model_kwargs={
-        #     "response_format": {"type": "json_object"}  # Force JSON output
-        # }
+        temperature=0
+
     )
     constractor_chain = load_query_constructor_runnable(
         llm,
@@ -127,15 +128,31 @@ def get_filter_from_query(query: str):
         metadata_info
     )
     result = constractor_chain.invoke({"query": query})
-    print(f"result: {result}")
+    # print(f"result: {result}")
     translator = QdrantTranslator(metadata_key="")
     
     if result.filter:
         try:
+            # 1. Clean the AST first
             clean_filter = flatten_metadata_values(result.filter)
-            print(f"clearn_filter: {clean_filter}")
-            qdrant_filter = translator.visit_operation(clean_filter)
-            qdrant_filter = clean_qdrant_filters(qdrant_filter)
+            clean_filter = remove_content_prefix(clean_filter) # Use your helper
+            
+            # 2. Check the type of the filter to use the correct visitor method
+            if isinstance(clean_filter, Comparison):
+                qdrant_filter = translator.visit_comparison(clean_filter)
+            elif isinstance(clean_filter, Operation):
+                qdrant_filter = translator.visit_operation(clean_filter)
+            else:
+                qdrant_filter = None
+            
+            # 3. Final cleaning for Qdrant-specific FieldConditions
+            if qdrant_filter:
+                qdrant_filter = clean_qdrant_filters(qdrant_filter)
+            if isinstance(qdrant_filter, models.FieldCondition):
+                qdrant_filter = models.Filter(must=[qdrant_filter])
+                
+            return qdrant_filter
+                
         except Exception as e:
             print(f"Translation failed: {e}")
             qdrant_filter = None

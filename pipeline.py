@@ -20,7 +20,7 @@ class RAGPipeline:
         self.reranker = Reranker() 
         self.llm      = LLMClient()
 
-    def run(self, query: str, top_k: int = 8) -> dict:
+    def run(self, query: str, top_k: int = 10) -> dict:
         """
         Full RAG pipeline — no FastAPI dependency.
         Can be called from API, CLI, tests, anywhere.

@@ -5,7 +5,10 @@ from qdrant_client.models import Prefetch, FusionQuery, Fusion, Filter
 from fastembed import SparseTextEmbedding
 from typing import Optional
 from dataclasses import dataclass
+import os
+from dotenv import load_dotenv
 
+load_dotenv()
 
 # result schema
 @dataclass
@@ -18,12 +21,18 @@ class SearchResult:
 class HybridSearch:
     def __init__(self, dense_model_name:str= "BAAI/bge-large-en-v1.5", sparse_model_name:str="Qdrant/bm25"):
         self.dense_model_name = dense_model_name
-        self.dense_model = SentenceTransformer(self.dense_model_name, device="cuda")
+        self.dense_model = SentenceTransformer(self.dense_model_name)
         self.sparse_model_name = sparse_model_name
         self.sparse_model = SparseTextEmbedding(self.sparse_model_name)
 
-        self.client = QdrantClient(host="localhost", port=6333)
-        self.collection_name = "contracts_v1"
+        host = os.getenv("QDRANT_HOST", "localhost")
+        port = int(os.getenv("QDRANT_PORT", 6333))
+        self.client = QdrantClient(host=host, port=port)
+
+        # self.client = QdrantClient(host="localhost", port=6333)
+
+        self.collection_name = "contracts"
+        
     def hybrid_search_with_rrf(self, query:str, filters:Optional[Filter]=None):
         """Perform hybrid search using Reciprocal Rank Fusion"""
         # rrf is a method for merging and ranking results from multiple search techniques
@@ -65,4 +74,3 @@ class HybridSearch:
             )
             for point in points
         ]
-

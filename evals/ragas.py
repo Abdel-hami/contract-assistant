@@ -1,5 +1,5 @@
 from ragas import evaluate
-from ragas.metrics import faithfulness, answer_relevancy, context_recall
+from ragas.metrics import faithfulness, answer_relevancy, context_recall, context_precision
 from datasets import Dataset
 import json
 from langchain_groq import ChatGroq
@@ -11,16 +11,16 @@ load_dotenv()
 groq_api_key = os.getenv("GROQ_API_KEY")
 
 def run_ragas():
-    with open("evals/golden_dataset.json", "r") as f:
+    with open("evals/golden_dataset_ragas_ready.json", "r") as f:
         golden = json.load(f)
 
     dataset = Dataset.from_list(golden)
-    model_kwargs = {'device': 'cuda'}  # or 'cuda:0'
+    model_kwargs = {'device': 'cuda'}  
     encode_kwargs = {'normalize_embeddings': True}
     results = evaluate(
         dataset=dataset,
-        metrics=[faithfulness, answer_relevancy, context_recall],
-        llm=ChatGroq(model_name="llama-3.3-70b-versatile", groq_api_key = groq_api_key, temperature=0),
+        metrics=[faithfulness, answer_relevancy, context_recall, context_precision],
+        llm=ChatGroq(model_name="qwen/qwen3-32b", groq_api_key = groq_api_key, temperature=0, n=1, max_retries=10), # n is the number of answers to generate per question and max_retries is the number of times to retry a question if the model fails to generate an answer
         embeddings=HuggingFaceEmbeddings(model_name="BAAI/bge-large-en-v1.5", model_kwargs=model_kwargs, encode_kwargs =encode_kwargs)
     )
 
